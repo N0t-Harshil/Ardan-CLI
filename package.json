@@ -1,0 +1,33 @@
+{
+  "name": "ardan",
+  "version": "0.6.0",
+  "description": "Ardan - a fast, lightweight open coding-agent CLI (openclaude/Claude-Code-style architecture) for OpenAI, Anthropic, Gemini, Groq, Ollama and 200+ models",
+  "type": "module",
+  "bin": {
+    "ardan": "bin/ardan.js"
+  },
+  "files": [
+    "bin/",
+    "src/"
+  ],
+  "scripts": {
+    "start": "node bin/ardan.js",
+    "test": "node --test tests/tools.test.ts tests/agent.test.ts tests/session.test.ts tests/providers-openai.test.ts tests/config.test.ts tests/tooljson.test.ts tests/render.test.ts tests/plugins.test.ts tests/tasks.test.ts tests/hooks.test.ts tests/interactive.test.ts tests/inspect.test.ts tests/bg-tasks.test.ts tests/extras.test.ts tests/more-features.test.ts"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "keywords": [
+    "cli",
+    "agent",
+    "coding-agent",
+    "openai",
+    "anthropic",
+    "gemini",
+    "ollama",
+    "groq",
+    "openclaude",
+    "claude-code"
+  ],
+  "license": "MIT"
+}

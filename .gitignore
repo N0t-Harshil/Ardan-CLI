@@ -1,7 +1,21 @@
 __pycache__/
-*.pyc
-ardan.egg-info/
-dist/
+*.py[cod]
+*.egg-info/
 build/
-.ardan/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+*.session
+
+# Ardan runtime data
 ardan-output/
+.ardan/
+.ardan-worktrees/
+
+# Node / TypeScript CLI
+node_modules/
+*.tsbuildinfo
+npm-debug.log*
