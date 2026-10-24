@@ -1,22 +1,22 @@
-import unittest
 import os
+import tempfile
+import unittest
+
 from ardan.tools.deps_tools import scan_imports
 
 
 class TestDepsTools(unittest.TestCase):
     def test_scan_imports(self):
-        # Create a dummy python file with imports
-        with open("dummy_imports.py", "w") as f:
-            f.write("import os\nfrom typing import List\nimport requests\n")
+        tmp = tempfile.mkdtemp()
+        with open(os.path.join(tmp, "sample.py"), "w", encoding="utf-8") as handle:
+            handle.write("import os\nfrom typing import List\nimport requests\n")
+        os.makedirs(os.path.join(tmp, "node_modules"))
 
-        res = scan_imports(".")
-        self.assertTrue(res.success)
-        # Check if basic imports are found (os, typing are stdlib, requests is external)
-        self.assertIn("os", res.output)
-        self.assertIn("typing", res.output)
-        self.assertIn("requests", res.output)
-
-        os.remove("dummy_imports.py")
+        result = scan_imports(tmp)
+        self.assertTrue(result.success)
+        self.assertIn("os", result.output)
+        self.assertIn("typing", result.output)
+        self.assertIn("requests", result.output)
 
 
 if __name__ == "__main__":

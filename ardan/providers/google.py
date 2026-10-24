@@ -1,6 +1,7 @@
 from typing import AsyncIterator, List, Optional
-from ardan.providers.base import BaseProvider, ArdanProviderError
-from ardan.agent.messages import Message, GenerationConfig, ModelInfo, HealthStatus
+
+from ardan.agent.messages import GenerationConfig, HealthStatus, Message, ModelInfo
+from ardan.providers.base import ArdanProviderError, BaseProvider
 
 try:
     import google.generativeai as genai
@@ -16,9 +17,8 @@ class GoogleProvider(BaseProvider):
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.0-flash",
-        "gemini-1.5-pro",
     ]
-    default_model = "gemini-2.5-pro"
+    default_model = "gemini-2.5-flash"
 
     def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None):
         super().__init__(api_key, base_url)
@@ -33,10 +33,12 @@ class GoogleProvider(BaseProvider):
                 "Google SDK not installed. Install with: pip install ardan[google]",
                 self.name,
             )
+        if not self.api_key:
+            raise ArdanProviderError(
+                "API key missing. Store it with: ardan keys set google", self.name
+            )
 
-        system_instruction = next(
-            (m.content for m in messages if m.role == "system"), None
-        )
+        system_instruction = next((m.content for m in messages if m.role == "system"), None)
         contents = [
             {"role": "user" if m.role == "user" else "model", "parts": [m.content]}
             for m in messages
@@ -58,14 +60,11 @@ class GoogleProvider(BaseProvider):
                 stream=True,
             )
             async for chunk in response:
-                yield chunk.text
-        except Exception as e:
-            if "safety" in str(e).lower():
-                # Potential retry with relaxed safety if logic allowed
-                raise ArdanProviderError(
-                    f"Safety filter blocked request: {str(e)}", self.name
-                )
-            raise ArdanProviderError(str(e), self.name)
+                text = getattr(chunk, "text", None)
+                if text:
+                    yield text
+        except Exception as error:
+            raise ArdanProviderError(str(error), self.name)
 
     async def list_models(self) -> List[ModelInfo]:
         return [
@@ -75,7 +74,15 @@ class GoogleProvider(BaseProvider):
                 provider=self.name,
                 context_window=2000000,
                 pricing_per_1m_tokens=1.25,
-                strength="Huge context, smartest",
+                strength="Huge context, strong reasoning",
+            ),
+            ModelInfo(
+                id="gemini-2.5-flash",
+                name="Gemini 2.5 Flash",
+                provider=self.name,
+                context_window=1000000,
+                pricing_per_1m_tokens=0.10,
+                strength="Fast Google workhorse",
             ),
             ModelInfo(
                 id="gemini-2.0-flash",
@@ -83,13 +90,13 @@ class GoogleProvider(BaseProvider):
                 provider=self.name,
                 context_window=1000000,
                 pricing_per_1m_tokens=0.10,
-                strength="Fastest Google model",
+                strength="Budget option",
             ),
         ]
 
     async def health_check(self) -> HealthStatus:
         if not genai:
-            return HealthStatus("unhealthy", "Google SDK not installed.")
+            return HealthStatus("unhealthy", "Google SDK not installed: pip install ardan[google]")
         if not self.api_key:
-            return HealthStatus("unhealthy", "API key missing.")
+            return HealthStatus("unhealthy", "API key missing. Use: ardan keys set google")
         return HealthStatus("healthy", "Google configured.")

@@ -1,28 +1,34 @@
+# Ardan configuration.
+# Keys set via `ardan keys set <provider>` or <PROVIDER>_API_KEY env vars take
+# precedence over config below. Provider settings here are merged in.
+
 ardan:
+  # ollama | anthropic | google | openai | mistral | groq | openrouter
   default_provider: ollama
 
+# Per-provider configuration. `model` becomes the provider's default model.
 providers:
   ollama:
     base_url: http://localhost:11434
-    model: codellama:13b
+    model: qwen2.5-coder:14b
     temperature: 0.2
     num_ctx: 8192
     stream: true
 
   anthropic:
-    model: claude-3-5-sonnet-latest
+    model: claude-sonnet-4-5
     temperature: 0.2
     max_tokens: 8096
     stream: true
 
   google:
-    model: gemini-2.0-flash
+    model: gemini-2.5-flash
     temperature: 0.2
     max_tokens: 8096
     stream: true
 
   openai:
-    model: gpt-4o
+    model: gpt-4.1
     temperature: 0.2
     max_tokens: 8096
     stream: true
@@ -40,7 +46,7 @@ providers:
     stream: true
 
   openrouter:
-    model: deepseek/deepseek-coder-v2
+    model: deepseek/deepseek-chat
     temperature: 0.2
     max_tokens: 8096
     stream: true
@@ -48,15 +54,25 @@ providers:
     app_name: Ardan
 
 agent:
-  max_steps: 50
-  auto_confirm: false
   workspace: ./ardan-output
-  auto_failover: true
+  max_steps: 40                # hard cap on plan steps executed per run
+  max_turns_per_step: 5        # ReAct turns per step before giving up
+  auto_confirm: false          # skip the "Proceed?" prompt for plans
+  auto_failover: true          # fall through to failover_chain on provider errors
+  failover_chain: [groq, openrouter, ollama]
+  auto_fix_errors: true        # run the reviewer/fixer pass after every build
   multi_pass_review: true
-  auto_fix_errors: true
 
 ui:
-  show_raw_llm_output: false
+  show_raw_llm_output: false   # print raw model text while a step executes
   show_provider_badge: true
-  show_tokens_per_second: true
   theme: dark
+
+# Optional MCP servers the executor can call as tools.
+# Example:
+#   servers:
+#     files:
+#       command: npx
+#       args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+mcp:
+  servers: {}

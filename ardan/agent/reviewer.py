@@ -1,8 +1,11 @@
-import json
+import re
 from typing import Dict, Any, List, Optional
+
 from ardan.agent.messages import Message, GenerationConfig
+from ardan.agent.planner import normalize_plan
 from ardan.ollama.prompts import REVIEWER_SYSTEM
 from ardan.agent.memory import Memory
+from ardan.utils.parse import extract_json_array, extract_json_objects
 
 
 class Reviewer:
@@ -11,61 +14,53 @@ class Reviewer:
         self.memory = memory
 
     async def review_work(self, task: str) -> Optional[List[Dict[str, Any]]]:
-        # Construct summary of work for reviewer
-        context = self.memory.get_full_context()
-        files_created = ", ".join(self.memory.files_created)
-        files_modified = ", ".join(self.memory.files_modified)
-        commands_run = ", ".join(self.memory.commands_run)
-
+        """Return None when the work passed, else a list of fix steps."""
+        context = self.memory.get_recent_context(limit=40)
         prompt = f"""
-        Original Task: {task}
-        Files Created: {files_created}
-        Files Modified: {files_modified}
-        Commands Run: {commands_run}
+Original Task: {task}
 
-        History of actions:
-        {context}
+Files Created: {', '.join(self.memory.files_created) or 'none'}
+Files Modified: {', '.join(self.memory.files_modified) or 'none'}
+Commands Run: {', '.join(self.memory.commands_run[-20:]) or 'none'}
 
-        Review the work and determine if it's complete and correct according to the original task.
-        """
+Action history (most important parts):
+{context}
+
+Review whether the work is complete and correct for the original task.
+If yes respond PASSED, otherwise respond with the JSON array of fix steps.
+"""
 
         msgs = [
             Message(role="system", content=REVIEWER_SYSTEM),
             Message(role="user", content=prompt),
         ]
-        config = GenerationConfig(stream=False)
         response = ""
-        async for chunk in self.provider.generate(msgs, config):
+        async for chunk in self.provider.generate(msgs, GenerationConfig(stream=False)):
             response += chunk
 
-        if "PASSED" in response:
+        if re.search(r"\bPASSED\b", response):
             return None
 
-        # If not passed, parse the response into a list of new steps
-        # Similar logic to Planner
-        try:
-            start_index = response.find("[")
-            end_index = response.rfind("]") + 1
-            if start_index != -1 and end_index != 0:
-                json_str = response[start_index:end_index]
-                new_steps = json.loads(json_str)
-                return new_steps
-            else:
-                # Fallback: create a single step with the feedback
-                return [
-                    {
-                        "id": 999,
-                        "description": f"Fix issues reported by reviewer: {response}",
-                        "tool_hint": "",
-                        "depends_on": [],
-                    }
-                ]
-        except (json.JSONDecodeError, ValueError):
-            return [
+        raw = extract_json_array(response)
+        if raw:
+            fix_plan = normalize_plan(raw, next_id=9000)
+            if fix_plan:
+                return fix_plan
+
+        # Fallback: grab any JSON fix-step object, else generic fix step.
+        for obj in extract_json_objects(response):
+            if "description" in obj:
+                normalized = normalize_plan([obj], next_id=9000)
+                if normalized:
+                    return normalized
+
+        return normalize_plan(
+            [
                 {
-                    "id": 999,
-                    "description": f"Fix issues reported by reviewer: {response}",
+                    "description": f"Fix issues found in review: {response[:400]}",
                     "tool_hint": "",
                     "depends_on": [],
                 }
-            ]
+            ],
+            next_id=9000,
+        )
