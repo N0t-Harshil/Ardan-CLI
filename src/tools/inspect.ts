@@ -263,7 +263,7 @@ export function ctxInspectTool(): ToolDef {
 
 /* -------------------------------------------------- ListMcpResources */
 
-export function listMcpResourcesTool(mcpServers: Array<{ serverName: string; request: (method: string, params: Record<string, unknown>) => Promise<unknown> }>): ToolDef {
+export function listMcpResourcesTool(mcpServers: Array<{ serverName: string; request: (method: string, params: Record<string, unknown>) => Promise<any> }>): ToolDef {
   return {
     name: 'ListMcpResources',
     description: 'List resources exposed by connected MCP servers.',
@@ -286,7 +286,7 @@ export function listMcpResourcesTool(mcpServers: Array<{ serverName: string; req
         } catch {
           /* server without resources */
         }
-        const resources = listed?.resources || [];
+        const resources = listed?.result?.resources || [];
         if (!resources.length) {
           lines.push(`${server.serverName}: (no resources)`);
           continue;
@@ -306,7 +306,7 @@ export function listMcpResourcesTool(mcpServers: Array<{ serverName: string; req
   };
 }
 
-export function readMcpResourceTool(mcpServers: Array<{ serverName: string; request: (method: string, params: Record<string, unknown>) => Promise<unknown> }>): ToolDef {
+export function readMcpResourceTool(mcpServers: Array<{ serverName: string; request: (method: string, params: Record<string, unknown>) => Promise<any> }>): ToolDef {
   return {
     name: 'ReadMcpResource',
     description:
@@ -330,7 +330,8 @@ export function readMcpResourceTool(mcpServers: Array<{ serverName: string; requ
       }
       try {
         const read = await server.request('resources/read', { uri });
-        const contents = read?.contents || [(read as any)?.content].filter(Boolean);
+        if (read?.error) return { ok: false, output: `MCP error: ${read.error.message || 'resources/read failed'}` };
+        const contents: any[] = read?.result?.contents || [];
         const parts = contents.map((content: any) =>
           content.blob
             ? `[binary ${content.mimeType || 'blob'} uri=${content.uri}]`

@@ -27,6 +27,9 @@ export interface SessionMeta {
   preview: string;
 }
 
+/** Event types that make up the conversation (everything else is metadata). */
+const REPLAY_TYPES = new Set(['user', 'assistant', 'tool_result', 'summary']);
+
 export class SessionStore {
   readonly id: string;
   readonly file: string;
@@ -61,7 +64,7 @@ export class SessionStore {
   }
 
   appendEvent(event: SessionEvent): void {
-    this.append({ type: event.type, ...event });
+    this.append({ ...event });
   }
 
   /** Store auxiliary envelope events (title, goal) that replay ignores. */
@@ -176,13 +179,13 @@ export class SessionStore {
         .filter((line) => line.trim())
         .map((line) => {
           try {
-            return JSON.parse(line) as SessionEvent & { type: 'meta' | SessionEvent['type'] };
+            return JSON.parse(line) as { type?: string };
           } catch {
             return null;
           }
         })
-        .filter((entry): entry is SessionEvent & Record<string, unknown> => Boolean(entry))
-        .filter((entry) => entry.type !== 'meta');
+        // only conversation events; meta envelopes (session, title, goal) are skipped
+        .filter((entry): entry is SessionEvent => Boolean(entry) && REPLAY_TYPES.has(String(entry?.type)));
     } catch {
       return [];
     }
@@ -216,7 +219,20 @@ export class SessionStore {
   compact(): void {
     const events = this.readEvents();
     const keep = events.slice(-40);
-    fs.writeFileSync(this.file, '', 'utf8');
+    // keep meta envelopes (session header, title, goal) so /sessions still shows them
+    let meta: string[] = [];
+    try {
+      meta = fs.readFileSync(this.file, 'utf8').split('\n').filter((line) => {
+        try {
+          return line.trim() && !REPLAY_TYPES.has(String(JSON.parse(line).type));
+        } catch {
+          return false;
+        }
+      });
+    } catch {
+      /* new file */
+    }
+    fs.writeFileSync(this.file, meta.length ? meta.join('\n') + '\n' : '', 'utf8');
     this.append({ type: 'summary', text: `${events.length - keep.length} older events trimmed` });
     for (const event of keep) this.appendEvent(event);
   }

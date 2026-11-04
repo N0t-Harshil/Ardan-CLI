@@ -3,7 +3,7 @@
 // the REPL to switch the working context to it after the current turn.
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
-import type { ToolDef } from '../types.ts';
+import type { ToolDef, ToolOutcome } from '../types.ts';
 
 function git(workdir: string, args: string[], timeout = 60_000): { ok: boolean; output: string } {
   try {

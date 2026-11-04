@@ -6,6 +6,14 @@ if (Number.isNaN(major) || major < 24) {
   console.error('Install Node 24+: https://nodejs.org  (winget install OpenJS.NodeJS)');
   process.exit(1);
 }
+// Cache compiled (type-stripped) modules on disk between runs for faster
+// startup after the first launch. No-op if unsupported.
+try {
+  const { enableCompileCache } = await import('node:module');
+  enableCompileCache?.();
+} catch {
+  /* older runtime - ignore */
+}
 try {
   await import(new URL('../src/cli.ts', import.meta.url));
 } catch (error) {

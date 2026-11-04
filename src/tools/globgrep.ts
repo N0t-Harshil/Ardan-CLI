@@ -130,7 +130,7 @@ export function grepTool(): ToolDef {
         } catch {
           return;
         }
-        if (content.indexOf(binaryGuard, 0, binaryGuard.length) !== -1) return;
+        if (content.subarray(0, 8192).indexOf(binaryGuard) !== -1) return;
         const text = content.toString('utf8');
         const rel = path.relative(ctx.workdir, file).replace(/\\/g, '/');
         const lines = text.split('\n');

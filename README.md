@@ -1,378 +1,412 @@
-# Ardan
+<div align="center">
 
-    █████╗ ██████╗ ██████╗  █████╗ ███╗   ██╗
-   ██╔══██╗██╔══██╗██╔══██╗██╔══██╗████╗  ██║
-   ███████║██████╔╝██║  ██║███████║██╔██╗ ██║
-   ██╔══██║██╔══██╗██║  ██║██╔══██║██║╚██╗██║
-   ██║  ██║██████╔╝██████╔╝██║  ██║██║ ╚████║
-   ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═══╝
+<img src="docs/assets/hero.svg" alt="Ardan — an autonomous coding agent for your terminal" width="100%">
 
-Ardan is a fast, lightweight terminal coding agent in the style of
-openclaude / Claude Code: you type a task, Ardan streams the answer,
-runs tools (read, write, edit, bash, search, web), observes the
-results and keeps going until the job is done.
+<br>
 
-- **TypeScript, zero runtime dependencies** - npm package, instant
-  startup, no build step (Node 24 strips types natively).
-- **Any model** - Ollama (local), Anthropic, OpenAI, Gemini, Groq,
-  Mistral, OpenRouter, DeepSeek, or any OpenAI-compatible endpoint.
-- **Text-JSON tool-call fallback** - works with small local models that
-  do not support native tool calling (e.g. qwen2.5-coder via Ollama).
+[![CI](https://github.com/N0t-Harshil/Ardan-CLI/actions/workflows/ci.yml/badge.svg)](https://github.com/N0t-Harshil/Ardan-CLI/actions/workflows/ci.yml)
+![node](https://img.shields.io/badge/node-%3E%3D24-339933?logo=node.js&logoColor=white)
+![typescript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
+![dependencies](https://img.shields.io/badge/runtime%20dependencies-0-brightgreen)
+![platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-informational)
+[![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
+[Features](#features) · [Install](#install) · [Usage](#usage) · [Providers](#providers) · [Extending](#extending-ardan) · [How it works](#how-it-works)
+
+</div>
+
+---
+
+Ardan is a terminal coding agent in the spirit of Claude Code. Describe a task
+in plain English and Ardan reads your code, edits files, runs commands and
+tests, looks at the results, and keeps iterating until the job is done. You
+stay in control: every risky action asks for permission first.
+
+<p align="center">
+  <img src="docs/assets/demo.svg" alt="Ardan writing sum.js, running it with node and reporting sum=10" width="760">
+</p>
+
+<p align="center"><sub>Ardan's actual terminal output: every tool call is shown as it happens — what the agent ran, and what came back.</sub></p>
+
+### Why Ardan
+
+- **Bring any model.** Claude, GPT, Gemini, Groq, Mistral, DeepSeek,
+  OpenRouter or any OpenAI-compatible server — or run 100% offline and free on
+  your own machine with Ollama. Your code never has to leave your laptop.
+- **Small local models still work.** Models that don't support function
+  calling can write tool calls as plain-text JSON; Ardan parses them while the
+  answer is streaming and hides the raw JSON from the screen.
+- **Nothing to install but Node.** Strict TypeScript with **zero runtime
+  dependencies** — HTTP streaming, the MCP client, the LSP client and the
+  terminal UI are all built from scratch on Node's standard library.
+
+### By the numbers
+
+| | |
+|:--|:--|
+| **8** LLM providers built in | plus any OpenAI-compatible endpoint |
+| **35** tools the agent can use | plus every tool from connected MCP servers |
+| **0** runtime dependencies | nothing to audit, nothing to break on `npm install` |
+| **75 KB** download | the entire CLI, as an npm package |
+| **~150 ms** startup | `ardan --version` on a 4-core laptop CPU |
+| **3** operating systems | Linux, macOS and Windows, tested in CI |
+| **$0** to run | fully offline with Ollama — no API key, no account |
+
+## Features
+
+### 🤖 The agent loop
+- Streams the model's answer token by token, executes the tool calls it
+  makes, feeds the results back, and repeats until the task is finished (or
+  the turn limit is hit).
+- **Plan mode** (`--plan` or `/plan`) restricts the agent to read-only tools
+  so it can research and propose a plan; switching back to implementation
+  requires your approval.
+- **Sub-agents** — the `Task` tool hands a self-contained job to a fresh
+  agent with its own context and tool set, then returns its report.
+- **Goals and todo lists** keep long multi-step tasks on track.
+
+### 🛠️ A full developer toolset (35 built-in tools)
+| area | what the agent can do |
+|---|---|
+| **Code** | read, write and surgically edit files; glob and regex search; a structural repo map; edit Jupyter notebooks |
+| **Shell** | run Bash or PowerShell; commands still running after 15 s move to the background automatically, with tools to poll, stream or kill them |
+| **Web** | fetch pages as clean text; web search |
+| **Workspace** | isolate risky work in a git worktree; a persistent JavaScript REPL for quick experiments |
+| **Planning** | todo lists, a task tracker, cron-style scheduled prompts, questions back to the user |
+| **Diagnostics** | real compiler/linter errors from any language server (LSP) |
+| **Integrations** | every tool and resource from connected MCP servers |
+
+### 🔌 Eight providers, one interface
+Ollama, Anthropic, OpenAI, Gemini, Groq, Mistral, OpenRouter and DeepSeek
+are built in, and any OpenAI-compatible endpoint (LM Studio, vLLM,
+llama.cpp…) can be added in a few lines of config. If a provider fails
+before it starts answering, Ardan **automatically fails over** to the next
+available one. Switch model or provider mid-conversation with `/model` and
+`/provider`.
+
+### 🛡️ Safe by default
+- Permission prompts for every write or command — allow once, for the
+  session, or deny. Three modes: `ask`, `acceptEdits`, `bypass`.
+- **File checkpoints:** every edit is snapshotted per turn, so
+  `/rewind 3 files` restores your files to exactly how they were after turn 3.
+- **Hooks** let you run your own scripts before/after any tool call — e.g.
+  block `git push --force` or log every command — and veto the action.
+
+### 💾 Sessions that persist
+Each project keeps its own conversation history. Resume with `--continue`,
+pick an old session with `/resume`, compact long histories with `/compact`,
+and export a session to Markdown with `/export`. An `ARDAN.md` file in your
+project acts as long-term memory (build commands, conventions) for every
+session.
+
+### 🧩 Extensible with plain Markdown
+Drop a Markdown file in `.ardan/` to add your own **slash commands**,
+**sub-agents**, **skills** or **output styles** — no code required. Connect
+any **MCP server** with one command.
 
 ## Install
 
-Requires Node.js >= 24.
+Requires **Node.js 24+** (it runs TypeScript natively).
 
-    npm install -g .
+```bash
+git clone https://github.com/N0t-Harshil/Ardan-CLI.git
+cd Ardan-CLI
+npm install -g .
+ardan --version
+```
 
-then run:
+Or run it without installing: `node bin/ardan.js`.
 
-    ardan --version
+**Free & offline:** install [Ollama](https://ollama.com) and pull a coding model.
 
-or without installing:
+```bash
+ollama pull qwen2.5-coder:14b   # the default — best with a GPU or 16 GB+ RAM
+ollama pull llama3.2:3b         # lighter, for CPU-only laptops
+```
 
-    node bin/ardan.js
+**Cloud models:** set an API key (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, …) or
+save one with `ardan keys set anthropic sk-ant-...`.
 
-## Quickstart
+## Usage
 
-Interactive session:
+```bash
+ardan                                      # interactive session
+ardan "explain how auth works in this repo" # one-shot task
+ardan --yes "make the failing tests pass"   # unattended (CI / scripts)
+ardan --plan "how should we add caching?"   # research + plan only
+ardan --continue                           # pick up where you left off
+ardan -p anthropic -m claude-sonnet-4-5    # choose provider and model
+cat tasks.txt | ardan                      # scripted: one prompt / command per line
+```
 
-    ardan
+Inside a session:
 
-One-shot task (script/CI friendly):
+```text
+❯ @src/server.ts why does this crash on startup?     attach a file with @
+❯ !npm test                                          run a shell command with !
+❯ /rewind 2 files                                    undo the last edits
+❯ /diff                                              what changed this session
+```
 
-    ardan --yes "Add a README badge and commit it"
-    ardan --yes --cwd some-project "Make the failing tests pass"
+When the agent wants to do something risky, you decide:
 
-Resume work:
+```text
+? Bash(git push --force)
+  allow? [y] once  [a] this session  [n] no
+```
 
-    ardan --continue            # latest session for this folder
-    ardan --resume <session-id>
+<details>
+<summary><b>All slash commands</b></summary>
 
-Attach files inline with @ mentions, run shell directly with !:
+| command | purpose |
+|---|---|
+| `/help` | list commands |
+| `/plan` | toggle read-only plan mode |
+| `/model <name>` · `/provider <name>` | switch model / provider mid-session |
+| `/effort <low\|medium\|high>` | reasoning effort for models that support it |
+| `/permissions [mode]` | view or change the permission mode |
+| `/tools` · `/context` · `/status` · `/stats` · `/cost` | inspect the tool catalog, context size and session usage |
+| `/diff` · `/copy` · `/export` | changed files, copy last reply, export transcript |
+| `/rewind <n> [files]` | drop turns after n, optionally restoring files |
+| `/goal <text\|stop\|status>` · `/brief` | set a session goal, summarize progress |
+| `/review` · `/security-review` | guided read-only code / security review |
+| `/search <query>` | web search, summarized with links |
+| `/sessions` · `/resume <id>` · `/rename <title>` | manage sessions |
+| `/clear` · `/compact` | reset or shrink the conversation |
+| `/tasks` · `/schedule` | tracked tasks, scheduled prompts |
+| `/memory` · `/init` | edit / scaffold `ARDAN.md` project memory |
+| `/agents` · `/skills` · `/plugins` · `/hooks` · `/mcp` · `/output-style` | extensions |
+| `/config` · `/doctor` · `/exit` | settings, health check, quit |
 
-    @src/index.ts why does this file crash on startup?
-    !git status
+</details>
 
 ## Providers
 
-First available provider wins; override with ARDAN_PROVIDER /
---provider. Default model per provider (override --model / ARDAN_MODEL):
+| provider | default model | needs |
+|---|---|---|
+| Ollama | qwen2.5-coder:14b | nothing — runs locally |
+| Anthropic | claude-sonnet-4-5 | `ANTHROPIC_API_KEY` |
+| OpenAI | gpt-4.1 | `OPENAI_API_KEY` |
+| Gemini | gemini-2.5-flash | `GEMINI_API_KEY` |
+| Groq | llama-3.3-70b-versatile | `GROQ_API_KEY` |
+| Mistral | codestral-latest | `MISTRAL_API_KEY` |
+| OpenRouter | deepseek/deepseek-chat | `OPENROUTER_API_KEY` |
+| DeepSeek | deepseek-chat | `DEEPSEEK_API_KEY` |
 
-| provider   | default model            | key needed |
-|------------|--------------------------|------------|
-| ollama     | qwen2.5-coder:14b        | no (local) |
-| anthropic  | claude-sonnet-4-5        | ANTHROPIC_API_KEY |
-| openai     | gpt-4.1                  | OPENAI_API_KEY |
-| gemini     | gemini-2.5-flash         | GEMINI_API_KEY |
-| groq       | llama-3.3-70b-versatile  | GROQ_API_KEY |
-| mistral    | codestral-latest         | MISTRAL_API_KEY |
-| openrouter | deepseek/deepseek-chat   | OPENROUTER_API_KEY |
-| deepseek   | deepseek-chat            | DEEPSEEK_API_KEY |
+```bash
+ardan providers            # which providers are available and which is picked
+ardan models ollama        # list the models a provider offers
+ardan keys test            # check keys and connectivity
+```
 
-Subcommands:
+<details>
+<summary><b>Add any OpenAI-compatible server</b></summary>
 
-    ardan providers             # what is available + default pick
-    ardan models [provider]     # list models from the API
-    ardan keys list             # key status
-    ardan keys set groq gsk_...
-    ardan keys test [provider]
+`~/.ardan/settings.json`:
 
-Keys can come from env vars or be persisted to ~/.ardan/settings.json
-with `ardan keys set`.
-
-Custom OpenAI-compatible endpoints belong in settings.json:
-
-    {
-      "providers": {
-        "lmstudio": {
-          "type": "openai",
-          "apiBase": "http://localhost:1234/v1",
-          "apiKey": "lm-studio",
-          "model": "qwen2.5-coder-14b-instruct"
-        }
-      },
-      "defaultProvider": "lmstudio"
+```json
+{
+  "providers": {
+    "lmstudio": {
+      "type": "openai",
+      "apiBase": "http://localhost:1234/v1",
+      "apiKey": "lm-studio",
+      "model": "qwen2.5-coder-14b-instruct"
     }
+  },
+  "defaultProvider": "lmstudio"
+}
+```
+</details>
 
-## Tools
+<details>
+<summary><b>Extended thinking & reasoning effort</b></summary>
 
-Ardan ships the full openclaude-class toolset (36 built-ins):
+`"reasoningEffort": "high"` is sent to OpenAI-compatible reasoning models.
+With `"alwaysThinking": true`, Claude uses extended thinking and Gemini a
+thinking budget (`maxThinkingTokens`); the thinking streams live.
+</details>
 
-    Read  Write  Edit  ListDir  Glob  Grep  Bash  PowerShell
-    TodoWrite  WebFetch  WebSearch  Task (sub-agent, custom agents)
-    TaskOutput  TaskStop  Monitor (background task control)
-    AskUserQuestion  EnterPlanMode / ExitPlanMode
-    RepoMap  NodeRepl (persistent JS sandbox)  NotebookEdit (.ipynb)
-    CtxInspect  ToolSearch  DiscoverSkills  Diagnostics (LSP)
-    TaskCreate  TaskGet  TaskUpdate  TaskList
-    CronCreate  CronList  CronDelete (scheduled prompts)
-    EnterWorktree / ExitWorktree  Skill  Sleep
-    ListMcpResources  ReadMcpResource
+## Extending Ardan
 
-Plan mode swaps the catalog down to a research-only set.
+### Custom slash commands
+`.ardan/commands/changelog.md`:
 
-### Background tasks
+```markdown
+---
+description: Draft a changelog entry from recent commits
+---
+Recent commits:
+! git log --oneline -15
 
-Long commands don't have to block the loop:
+Write a changelog entry for version $1 based on these commits.
+```
 
-    Bash(run_in_background: true)   ->  task id "b1"
+Now `/changelog 1.4.0` works. `$ARGUMENTS` / `$1…` are filled in from what you
+type, and lines starting with `! ` are replaced by that command's output.
 
-The agent polls TaskOutput(task_id, block=true) for output and exit
-status, kills with TaskStop, and the REPL injects a task-notification
-message into the conversation when something finishes while idle.
-PowerShell run_in_background works the same way.
+### Sub-agents
+`.ardan/agents/auditor.md` — call it via the `Task` tool or list with `/agents`:
 
-Foreground commands run *unattended* for at most ~15 seconds: if a
-plain Bash/PowerShell call is still running after that budget, it is
-automatically moved into the background registry and the tool call
-returns a receipt with a task id (openclaude-style auto-backgrounding).
-The Monitor tool goes further: it registers the task immediately and
-streams new stdout into the conversation while the command runs
-(default cap 30 min) — good for log tailing, dev servers and watchers.
+```markdown
+---
+name: auditor
+description: Read-only security auditor
+tools: Read, Grep, RepoMap
+maxTurns: 6
+---
+Audit the codebase for injection, secrets and unsafe file handling.
+Report each finding with file:line and a suggested fix.
+```
 
-### LSP diagnostics
+### Skills & output styles
+- `.ardan/skills/<name>/SKILL.md` — playbooks the agent loads on demand (or
+  you run as `/<name>`).
+- `.ardan/output-styles/<name>.md` — change how Ardan writes, via
+  `/output-style <name>`.
 
-Configure language servers once per project/plugin dir in
-settings.json, then use the Diagnostics tool to check files:
+Put any of these in `~/.ardan/` instead to use them in every project.
 
-    "lspServers": {
-      "typescript-language-server": {
-        "command": "typescript-language-server",
-        "args": ["--stdio"],
-        "extensions": [".ts", ".tsx", ".js", ".mjs"]
-      }
-    }
+### MCP servers
 
-The tool performs the full stdio LSP handshake per call
-(initialize/initialized/didOpen) and collects publishDiagnostics for
-that file with a 4s default wait (timeout arg overridable). Servers
-are killed after the call — no daemons, no ambient state.
+```bash
+ardan mcp add github -- npx -y @modelcontextprotocol/server-github
+ardan mcp list
+```
 
-### Scheduled prompts
+Their tools show up as `mcp__github__<tool>`, their resources through
+`ListMcpResources` / `ReadMcpResource`, and `/mcp` shows connection status.
 
-    CronCreate(prompt: "check CI status", schedule: "every:15m")
-    CronCreate(prompt: "starting tomorrow, summarize today's work", schedule: "daily:17:30")
-    CronCreate(prompt: "run the release checklist", schedule: "at:2026-10-25T09:00Z")
+### Hooks
 
-Stored per-project in .ardan/scheduled_tasks.json (max 50); recurring
-jobs stamp their lastFired, one-shots self-delete. While the REPL is
-open, due prompts fire automatically as a normal agent turn. `/schedule`
-lists them; manage with CronList/CronDelete.
+```json
+"hooks": {
+  "PreToolUse":  [ { "matcher": "Bash|Write", "command": "node guard.js" } ],
+  "PostToolUse": [ { "command": "node audit-log.js" } ]
+}
+```
 
-## MCP
+Hooks receive the event as JSON on stdin. A `PreToolUse` hook that exits
+non-zero (or prints `{"decision":"block"}`) stops the tool, and its output
+is shown to the model as the reason. Events: `PreToolUse`, `PostToolUse`,
+`UserPromptSubmit`, `SessionStart`, `SessionEnd`.
 
-MCP servers (stdio) are opt-in - add from the CLI:
+### Language servers
 
-    ardan mcp add github -- npx -y @modelcontextprotocol/server-github
-    ardan mcp list
-    ardan mcp remove github
+```json
+"lspServers": {
+  "typescript": {
+    "command": "typescript-language-server",
+    "args": ["--stdio"],
+    "extensions": [".ts", ".tsx", ".js"]
+  }
+}
+```
 
-or via settings.json:
+The `Diagnostics` tool then gives the agent real compiler errors for a file.
 
-    "mcpServers": {
-      "github": { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-github"] }
-    }
+## How it works
 
-Their tools appear as mcp__<server>__<tool>; /mcp shows connection status,
-ListMcpResources / ReadMcpResource expose server resources, and with many
-MCP tools installed the agent can locate them by keyword via ToolSearch.
+<p align="center">
+  <img src="docs/assets/architecture.svg" alt="Architecture: you → CLI & REPL → agent loop, which streams from providers and runs tools" width="900">
+</p>
 
-## Plugins: commands, subagents, skills, output styles
+Engineering choices worth calling out:
 
-Drop markdown files in the project (+ ~/.ardan for user-wide) - they are
-picked up automatically and shown by /plugins:
+- **One provider interface.** Every backend is an async generator that
+  yields `text`, `tool_call` and `end` events, so the agent loop doesn't
+  care whether it's talking to Claude over SSE or a local model over NDJSON.
+  Failover only happens before the first token, so a half-written answer is
+  never duplicated.
+- **Text tool-call fallback.** For models without function calling, a
+  streaming parser spots tool calls written as fenced JSON, runs them, and
+  stops them reaching the terminal — even when the JSON is split across
+  network chunks — while ordinary code blocks still display normally.
+- **Long-running commands don't block.** Shell calls get a 15-second
+  foreground budget, then move to a background registry; the agent can poll,
+  stream or kill them, and gets notified when they finish.
+- **Local-first networking.** The Ollama adapter streams over raw
+  `node:http` with no time-to-first-byte limit, so slow CPU-only machines
+  that take minutes to load a model still work.
+- **Protocol clients from scratch.** MCP (JSON-RPC 2.0 over stdio) and LSP
+  (Content-Length framed JSON-RPC) are implemented directly, including
+  buffering of messages split across pipe chunks.
+- **No build step.** Node 24 strips TypeScript types at load time, and the
+  launcher enables Node's on-disk compile cache for faster startup.
 
-- `.ardan/commands/*.md` -> custom slash commands. The file body is the
-  prompt; `$ARGUMENTS` / `$1..` are filled from what you type after the
-  command; lines starting with `!` are executed inline at load time and
-  replaced by their shell output. Frontmatter `description` is optional.
-
-      /audit src/lib
-
-- `.ardan/agents/<name>.md` -> subagents callable through the Task tool's
-  `subagent` argument (or /agents to list). Frontmatter:
-
-      ---
-      name: auditor
-      description: Read-only project auditor
-      tools: Read, Grep, RepoMap
-      model: qwen2.5-coder:7b      # optional
-      maxTurns: 6                  # optional, default 8
-      permissionMode: default      # or bypassPermissions
-      ---
-
-- `.ardan/skills/<name>/SKILL.md` -> skills. The system prompt lists name +
-  description; the model loads the playbook with the Skill tool on demand
-  (DiscoverSkills lists them), and you can invoke any skill directly as
-  /<name>. Frontmatter keys: `name`, `description`, `allowed-tools`,
-  `user-invocable: false|true`.
-
-- `.ardan/output-styles/<name>.md` -> output styles: frontmatter
-  `name`/`description`/`keep-coding-instructions: false|true`; the body is
-  injected as a system-prompt style directive. `/output-style` lists,
-  `/output-style <name>` sets, `/output-style default` clears.
-
-## Hooks
-
-Configure shell hooks per event in ~/.ardan/settings.json; each entry
-gets a JSON payload (event, tool, args, session, cwd) on stdin and env
-ARDAN_HOOK_EVENT / ARDAN_HOOK_TOOL:
-
-    "hooks": {
-      "PreToolUse":  [ { "matcher": "Bash|Write", "command": "guard.cmd" } ],
-      "PostToolUse": [ { "command": "log.cmd" } ],
-      "UserPromptSubmit": [ { "command": "policy.cmd" } ],
-      "SessionStart": [...], "SessionEnd": [...]
-    }
-
-`matcher` is a pipe-list regex of tool names. Non-zero PreToolUse exit
-(or stdout JSON {"decision":"block"}) blocks the tool; that output
-becomes the model's denial reason.
-
-## Slash commands
-
-Built-ins:
-
-    /help  /plan  /model <name>  /provider <name>  /tools  /status /stats /context
-    /effort <low|medium|high>  /permissions [mode]
-    /cost  /diff  /copy  /export  /rename <title>  /rewind <n> [files]
-    /goal <text|stop|status>  /brief  /review  /security-review
-    /search <query>  /config  /schedule  /output-style [name]
-    /sessions  /resume <id>  /clear  /compact
-    /tasks  /memory  /init  /agents  /skills  /plugins  /hooks  /mcp
-    /doctor  /exit
-
-- /plan toggles plan mode; the agent can also enter/leave it itself with
-  the EnterPlanMode / ExitPlanMode tools. Leaving plan mode via
-  ExitPlanMode asks for your approval first (y/n) before switching.
-- /rewind keeps user turns 1..n and drops the rest; add `files` to also
-  roll back file changes: Write/Edit capture a per-turn checkpoint, and
-  `/rewind n files` restores every file touched in turns > n to its
-  state as of the end of turn n (`/rewind 0 files` = session start).
-- /effort sets the OpenAI-compatible reasoning_effort (persisted);
-  /permissions views or persists the permission mode; /status is an
-  alias of /stats that also shows effort, thinking and session grants.
-- /diff shows git changes plus files touched this session; /copy puts the
-  last reply on the clipboard; /export writes the transcript as markdown;
-  /rename titles the session (shown by /sessions).
-- /init scaffolds ARDAN.md; /review and /security-review run guided
-  read-only review passes; /brief summarizes the session.
-- Custom commands and skills from .ardan/ are callable directly:
-  `/audit src/lib`, `/greeting`.
-
-## Permissions
-
-Tool requests that write or execute things ask for confirmation:
-
-    ? Bash(git push --force)
-      allow? [y] once  [a] this session  [n] no
-
-Modes (ARDAN_PERMISSIONS env, settings.json "permissions", or the
-/permissions command - which persists it):
-
-- ask - confirm everything risky (default)
-- acceptEdits - file edits run without prompting
-- bypass - never prompt (also: --yes flag, for scripts/CI)
-
-## Sessions
-
-Every project gets its own transcript dir under
-~/.ardan/projects/<folder>. Sessions are saved as JSONL, resumeable
-with --continue / /resume, and compactable with /compact.
-
-## Project memory
-
-Create ARDAN.md in the project root (or run /memory). Its content is
-injected into the system prompt of every session - the right place for
-build commands and conventions.
+| path | responsibility |
+|---|---|
+| `bin/ardan.js` | launcher: Node version check, compile cache |
+| `src/cli.ts` | argument parsing, `providers` / `models` / `keys` / `mcp` subcommands |
+| `src/repl.ts` | interactive session, slash commands, permissions, hooks |
+| `src/agent.ts` | the agent loop and system prompt |
+| `src/providers/` | provider adapters and the failover chain |
+| `src/tools/` | all built-in tools plus the MCP and LSP clients |
+| `src/plugins/` | Markdown plugin loader, hook engine, scheduler |
+| `src/render.ts` | streaming terminal renderer |
+| `src/session.ts` | session storage, resume, rewind, export |
 
 ## Configuration
 
-    ~/.ardan/settings.json
+Settings live in `~/.ardan/settings.json`:
 
-    {
-      "defaultProvider": "ollama",
-      "permissions": "ask",
-      "maxTurns": 30,
-      "reasoningEffort": "high",
-      "maxTokens": 8192,
-      "alwaysThinking": false,
-      "maxThinkingTokens": 4096,
-      "lspServers": {},
-      "mcpServers": {},
-      "hooks": {},
-      "providers": {}
-    }
+```json
+{
+  "defaultProvider": "ollama",
+  "permissions": "ask",
+  "maxTurns": 30,
+  "maxTokens": 8192,
+  "reasoningEffort": "high",
+  "alwaysThinking": false,
+  "maxThinkingTokens": 4096,
+  "providers": {},
+  "mcpServers": {},
+  "lspServers": {},
+  "hooks": {}
+}
+```
 
-Env: ARDAN_PROVIDER, ARDAN_MODEL, ARDAN_PERMISSIONS, ARDAN_MAX_TURNS,
-ARDAN_REASONING_EFFORT, ARDAN_ALWAYS_THINKING, ARDAN_DISABLE_CRON,
-ARDAN_DISABLE_TASK_NOTIFICATIONS, ARDAN_OLLAMA_BASE_URL, NO_COLOR.
-`reasoningEffort` is sent as the OpenAI-compatible `reasoning_effort`
-field for providers that support it (o-series, deepseek-r1, ...).
-`maxTokens` is honored by every provider adapter. With
-`alwaysThinking: true`, the Anthropic adapter requests extended
-thinking with `thinking.budget_tokens = maxThinkingTokens` (thinking
-deltas stream like text) and Gemini gets
-`generationConfig.thinkingConfig.thinkingBudget`.
+<details>
+<summary><b>Environment variables</b></summary>
 
-## Architecture
+| variable | effect |
+|---|---|
+| `ARDAN_PROVIDER` / `ARDAN_MODEL` | provider and model |
+| `ARDAN_PERMISSIONS` | `ask` · `acceptEdits` · `bypass` |
+| `ARDAN_MAX_TURNS` | max agent iterations per task |
+| `ARDAN_REASONING_EFFORT` · `ARDAN_ALWAYS_THINKING` | reasoning controls |
+| `ARDAN_OLLAMA_BASE_URL` · `ARDAN_OLLAMA_NUM_CTX` | Ollama endpoint and context size (default 32768) |
+| `ARDAN_DISABLE_CRON` · `ARDAN_DISABLE_TASK_NOTIFICATIONS` | turn off background features |
+| `ARDAN_CONFIG_DIR` | use a different settings directory |
+| `NO_COLOR` | plain output |
 
-    bin/ardan.js              launcher (Node >= 24 check)
-    src/cli.ts                args, subcommands (keys/providers/models/mcp), bootstrap
-    src/repl.ts               interactive loop, slash commands, @file, !shell, hooks wiring
-    src/agent.ts              the agent loop (stream -> tools -> repeat)
-    src/types.ts              shared types + tool contract
-    src/config.ts             env-first settings, provider wiring
-    src/render.ts             ANSI renderer + tool-JSON suppression
-    src/session.ts            JSONL transcripts, resume/rewind/export, titles, goals
-    src/plugins/
-      loader.ts               frontmatter + commands/agents/skills/output-styles discovery
-      hooks.ts                hook engine (PreToolUse/PostToolUse/...)
-      scheduler.ts            CronCreate/CronList/CronDelete + due-task firing
-    src/providers/
-      openai.ts               OpenAI-compatible SSE (openai/groq/mistral/openrouter/deepseek)
-      ollama.ts               native /api/chat (local, tools, tok/s)
-      anthropic.ts            Messages SSE
-      gemini.ts               generateContent SSE
-      index.ts                failover chain (switches only before first token)
-    src/tools/
-      index.ts                registry + plan-mode filter
-      bash.ts                 Bash + PowerShell + managed spawn (auto-background)
-      files.ts globgrep.ts misc.ts mcp.ts
-      background.ts           TaskOutput / TaskStop / Monitor / notifications
-      lsp.ts                  Diagnostics tool (stdio LSP client)
-      searchtools.ts          ToolSearch + DiscoverSkills
-      interactive.ts          AskUserQuestion, Enter/ExitPlanMode
-      inspect.ts              RepoMap, NodeRepl, NotebookEdit, CtxInspect, MCP resources
-      tasks.ts                TaskCreate/Get/Update/List
-      worktree.ts             git worktree isolation
-      skillstool.ts           Skill playbook loader
-    src/utils/tooljson.ts     fallback parser for text-emitted tool calls
-    tests/                    node:test suite (npm test - 74 tests)
+</details>
 
 ## Troubleshooting
 
-- "Ollama unreachable" - start it: ollama serve
-- "model not pulled" - run: ollama pull qwen2.5-coder:14b
-- First answers on a local 14B model can take a while while the model
-  loads (cold prefill with the full tool catalog); later turns are fast
-- Windows console glyphs - use Windows Terminal (UTF-8), or NO_COLOR=1
-- Node < 24 - upgrade: winget install OpenJS.NodeJS
+| problem | fix |
+|---|---|
+| "Ollama unreachable" | start it with `ollama serve` |
+| "model not pulled" | `ollama pull qwen2.5-coder:14b` |
+| First answer is very slow on a laptop | CPU-only machines are slow with 14B models — try `--model llama3.2:3b` and `ARDAN_OLLAMA_NUM_CTX=8192` |
+| Garbled symbols on Windows | use Windows Terminal, or set `NO_COLOR=1` |
+| "requires Node.js >= 24" | `winget install OpenJS.NodeJS` · `brew install node` |
 
-## Not implemented (deliberately)
+## Development
 
-Cloud/IDE-coupled openclaude features that a zero-dependency terminal
-CLI cannot honor are intentionally absent: browser control (WebBrowser),
-IDE/mobile/desktop connectors, remote sessions & teams, LSP hover/"go
-to definition" automation (local publishDiagnostics IS implemented via
-the Diagnostics tool), statusline/theming customization, OAuth MCP,
-cloud reviews (/ultrareview), vim keybindings and UI themes.
-Everything that runs locally is in the tables above.
+```bash
+npm install         # dev tools only (TypeScript compiler + Node types)
+npm run typecheck   # strict type-check
+npm test            # node:test suite
+```
 
-## Legacy Python implementation
+CI runs the type-check, the test suite and a CLI smoke test on Linux, macOS
+and Windows.
 
-The previous Python implementation (planner/reviewer pipeline) is kept
-as reference under the ardan/ python package (pip install -e .). The
-TypeScript CLI in this repository root is the current product; the
-Python version will not receive further feature work.
+The `ardan/` folder holds the earlier Python prototype (a planner → executor →
+reviewer pipeline), kept for reference. The TypeScript CLI is the maintained
+version.
+
+## License
+
+[MIT](LICENSE)

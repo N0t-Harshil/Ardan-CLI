@@ -7,10 +7,12 @@ import { runAgentLoop, systemPrompt } from './agent.ts';
 import {
   LiveRenderer,
   askPermission,
+  bold,
   color,
   cyan,
   dim,
   green,
+  readUserLine,
   red,
   yellow,
 } from './render.ts';
@@ -35,7 +37,7 @@ import {
   type CustomCommand,
   type SkillDef,
 } from './plugins/loader.ts';
-import { checkDue } from './plugins/scheduler.ts';
+import { checkDue, readSchedule } from './plugins/scheduler.ts';
 import { monitorNewData, pendingBgNotifications } from './tools/background.ts';
 import { restoreFileHistory, restoreFileHistoryAt } from './tools/files.ts';
 import {
@@ -705,9 +707,10 @@ export async function startRepl(options: ReplOptions): Promise<void> {
           console.log(yellow(`  mode must be one of: ${validModes.join(', ')}`));
           return;
         }
-        settings.permissions = arg;
+        const mode = (arg === 'default' ? 'ask' : arg) as 'ask' | 'acceptEdits' | 'bypass';
+        settings.permissions = mode;
         saveSettings(settings);
-        console.log(green(`  ● permissions → ${arg} (persisted to settings.json)`));
+        console.log(green(`  ● permissions → ${mode} (persisted to settings.json)`));
         return;
       }
       case '/sessions': {
@@ -956,7 +959,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
           byRole[message.role] = (byRole[message.role] || 0) + 1;
           chars += message.content.length;
         }
-        console.log(`  context: ${dim(history.length)} messages, ~${dim(String(Math.round(chars / 4)))} tokens (${chars} chars)`);
+        console.log(`  context: ${dim(String(history.length))} messages, ~${dim(String(Math.round(chars / 4)))} tokens (${chars} chars)`);
         for (const [role, count] of Object.entries(byRole)) {
           console.log(`    ${role.padEnd(9)} ${dim(String(count))}`);
         }
@@ -1226,27 +1229,40 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     exitRepl();
   }
 
+  const processLine = async (line: string): Promise<void> => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+    if (trimmed.startsWith('/')) {
+      await handleCommand(trimmed);
+      return;
+    }
+    if (trimmed.startsWith('!')) {
+      await runShell(trimmed.slice(1).trim());
+      return;
+    }
+    await runTurn(trimmed, expandMentions(trimmed));
+  };
+
   if (!process.stdin.isTTY) {
-    console.log(
-      dim('stdin is not interactive — pass a prompt:   ardan "fix the failing tests"   (or see --help)'),
-    );
-    exitRepl(0);
+    // Scripted mode: `echo "fix the tests" | ardan` or a file of lines —
+    // each line is a prompt, /command or !shell, run in order.
+    const piped = readline.createInterface({ input: process.stdin, terminal: false });
+    const lines: string[] = [];
+    for await (const line of piped) lines.push(line);
+    if (!lines.some((line) => line.trim())) {
+      console.log(
+        dim('stdin is empty — pass a prompt:   ardan "fix the failing tests"   (or see --help)'),
+      );
+      exitRepl(0);
+    }
+    for (const line of lines) await processLine(line);
+    exitRepl();
   }
 
   while (true) {
     const line = await askLine(`${cyan('❯')} `);
     if (line === null || line === '__exit__') exitRepl();
-    const trimmed = (line || '').trim();
-    if (!trimmed) continue;
-    if (trimmed.startsWith('/')) {
-      await handleCommand(trimmed);
-      continue;
-    }
-    if (trimmed.startsWith('!')) {
-      await runShell(trimmed.slice(1).trim());
-      continue;
-    }
-    await runTurn(trimmed, expandMentions(trimmed));
+    await processLine(line || '');
   }
 }
 

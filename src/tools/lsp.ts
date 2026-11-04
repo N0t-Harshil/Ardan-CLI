@@ -14,6 +14,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { killTree } from './bash.ts';
 import type { ToolContext, ToolDef, ToolOutcome } from '../types.ts';
 
 export interface LspServerConfig {

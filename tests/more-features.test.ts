@@ -25,7 +25,7 @@ const SLOW = process.platform === 'win32'
 
 /* ------------------------------------------------- auto-backgrounding */
 
-test('Bash foreground: a still-running command migrates to the background after ~15s', async () => {
+test('Bash foreground: a still-running command migrates to the background after ~15s', { timeout: 60_000 }, async () => {
   const context = ctx();
   const started = Date.now();
   const outcome = await bashTool().run({ command: SLOW }, context);
@@ -37,11 +37,11 @@ test('Bash foreground: a still-running command migrates to the background after 
   const stopped = await taskStopTool().run({ task_id: id }, context);
   assert.equal(stopped.ok, true);
   assert.match(stopped.output, new RegExp(`${id} stopped`));
-}, 60_000);
+});
 
 /* --------------------------------------------------------- Monitor */
 
-test('Monitor registers a streaming task and monitorNewData reports fresh stdout', async () => {
+test('Monitor registers a streaming task and monitorNewData reports fresh stdout', { timeout: 20_000 }, async () => {
   const context = ctx();
   const started = await monitorTool().run(
     {
@@ -70,7 +70,7 @@ test('Monitor registers a streaming task and monitorNewData reports fresh stdout
 
   await taskStopTool().run({ task_id: id }, context);
   assert.equal(monitorNewData(context).length, 0, 'stopped monitor does not stream');
-}, 20_000);
+});
 
 /* -------------------------------------- per-turn file checkpoints */
 

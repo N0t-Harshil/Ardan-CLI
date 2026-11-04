@@ -66,9 +66,6 @@ export class AnthropicProvider implements Provider {
   private readonly maxTokens: number;
   private readonly alwaysThinking: boolean;
   private readonly maxThinkingTokens: number;
-  private readonly maxTokens: number;
-  private readonly alwaysThinking: boolean;
-  private readonly maxThinkingTokens: number;
 
   constructor(
     meta: ProviderMeta,

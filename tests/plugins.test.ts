@@ -48,6 +48,18 @@ test('loadCommands merges project over user dir', () => {
   assert.match(deploy.prompt, /Deploy \$ARGUMENTS now/);
 });
 
+test('custom command "! cmd" lines are replaced by the command output', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ardan-cmd-shell-'));
+  fs.mkdirSync(path.join(dir, '.ardan', 'commands'), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, '.ardan', 'commands', 'status.md'),
+    'Current marker:\n! echo ardan-shell-ok\nThen continue.\n',
+  );
+  const status = loadCommands(dir).find((c) => c.name === 'status');
+  assert.ok(status);
+  assert.match(status.prompt, /^Current marker:\nardan-shell-ok\nThen continue\./);
+});
+
 test('loadAgents reads frontmatter (name, tools, maxTurns, bypass)', () => {
   fs.mkdirSync(path.join(tmp, '.ardan', 'agents'), { recursive: true });
   fs.writeFileSync(

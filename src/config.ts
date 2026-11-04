@@ -11,9 +11,9 @@ import {
   DEFAULTS,
   PROVIDER_META,
   resolveProviderName,
-  type Provider,
   type Settings,
 } from './providers/base.ts';
+import type { Provider } from './types.ts';
 
 export function configDir(): string {
   return process.env.ARDAN_CONFIG_DIR || path.join(os.homedir(), '.ardan');
@@ -167,7 +167,7 @@ export function createProvider(
   const meta = { name, model };
 
   if (name === 'ollama') {
-    return new OllamaProvider(meta, getApiBase(name, settings) as string);
+    return new OllamaProvider(meta, getApiBase(name, settings) as string, settings.maxTokens);
   }
   if (name === 'anthropic') {
     const key = findApiKey(name, settings);

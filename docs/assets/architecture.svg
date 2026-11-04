@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="560" viewBox="0 0 1000 560" role="img" aria-label="Ardan architecture: CLI and REPL drive the agent loop, which streams from providers and executes tools">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#8b949e"/>
+    </marker>
+    <linearGradient id="core" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2a1745"/>
+      <stop offset="1" stop-color="#1b1f3a"/>
+    </linearGradient>
+  </defs>
+  <rect width="1000" height="560" rx="18" fill="#0d1117"/>
+
+  <g font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif">
+    <!-- user -->
+    <g>
+      <rect x="40" y="40" width="200" height="70" rx="12" fill="#161b22" stroke="#30363d"/>
+      <text x="140" y="70" text-anchor="middle" font-size="17" font-weight="600" fill="#e6edf3">You</text>
+      <text x="140" y="92" text-anchor="middle" font-size="13" fill="#8b949e">task · @files · /commands</text>
+    </g>
+    <!-- repl -->
+    <g>
+      <rect x="320" y="40" width="360" height="70" rx="12" fill="#161b22" stroke="#30363d"/>
+      <text x="500" y="70" text-anchor="middle" font-size="17" font-weight="600" fill="#e6edf3">CLI &amp; REPL</text>
+      <text x="500" y="92" text-anchor="middle" font-size="13" fill="#8b949e">permissions · hooks · plugins · slash commands</text>
+    </g>
+    <!-- sessions -->
+    <g>
+      <rect x="760" y="40" width="200" height="70" rx="12" fill="#161b22" stroke="#30363d"/>
+      <text x="860" y="70" text-anchor="middle" font-size="17" font-weight="600" fill="#e6edf3">Sessions</text>
+      <text x="860" y="92" text-anchor="middle" font-size="13" fill="#8b949e">JSONL · resume · rewind</text>
+    </g>
+
+    <!-- agent loop core -->
+    <g>
+      <rect x="290" y="170" width="420" height="200" rx="16" fill="url(#core)" stroke="#c084fc" stroke-opacity="0.7" stroke-width="1.5"/>
+      <text x="500" y="204" text-anchor="middle" font-size="19" font-weight="700" fill="#f5d0fe">Agent loop</text>
+      <g font-size="14" fill="#e9d5ff">
+        <text x="330" y="238">1  stream the model's answer</text>
+        <text x="330" y="264">2  collect tool calls (native or text-JSON)</text>
+        <text x="330" y="290">3  check permission, run the tools</text>
+        <text x="330" y="316">4  feed results back to the model</text>
+        <text x="330" y="342">5  repeat until the task is done</text>
+      </g>
+    </g>
+
+    <!-- providers -->
+    <g>
+      <rect x="40" y="430" width="400" height="96" rx="12" fill="#161b22" stroke="#30363d"/>
+      <text x="240" y="460" text-anchor="middle" font-size="17" font-weight="600" fill="#e6edf3">Providers</text>
+      <text x="240" y="484" text-anchor="middle" font-size="13" fill="#8b949e">Ollama · Anthropic · OpenAI · Gemini</text>
+      <text x="240" y="504" text-anchor="middle" font-size="13" fill="#8b949e">Groq · Mistral · OpenRouter · DeepSeek · + failover</text>
+    </g>
+    <!-- tools -->
+    <g>
+      <rect x="560" y="430" width="400" height="96" rx="12" fill="#161b22" stroke="#30363d"/>
+      <text x="760" y="460" text-anchor="middle" font-size="17" font-weight="600" fill="#e6edf3">Tools</text>
+      <text x="760" y="484" text-anchor="middle" font-size="13" fill="#8b949e">files · shell · web · sub-agents · tasks · worktrees</text>
+      <text x="760" y="504" text-anchor="middle" font-size="13" fill="#8b949e">MCP servers · LSP diagnostics</text>
+    </g>
+  </g>
+
+  <g stroke="#8b949e" stroke-width="1.6" fill="none" marker-end="url(#arrow)">
+    <path d="M240 75H314"/>
+    <path d="M680 75H754"/>
+    <path d="M500 110V164"/>
+    <path d="M345 372V424"/>
+    <path d="M385 428V376" stroke-dasharray="5 5"/>
+    <path d="M615 372V424"/>
+    <path d="M655 428V376" stroke-dasharray="5 5"/>
+  </g>
+  <g font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12" fill="#8b949e">
+    <text x="335" y="396" text-anchor="end">messages + tool schemas</text>
+    <text x="395" y="414" fill="#6e7681">streamed text / tool calls</text>
+    <text x="605" y="396" text-anchor="end">tool calls</text>
+    <text x="665" y="414" fill="#6e7681">results</text>
+  </g>
+</svg>

@@ -1,7 +1,7 @@
 {
   "name": "ardan",
   "version": "0.6.0",
-  "description": "Ardan - a fast, lightweight open coding-agent CLI (openclaude/Claude-Code-style architecture) for OpenAI, Anthropic, Gemini, Groq, Ollama and 200+ models",
+  "description": "Ardan - a fast, lightweight, zero-dependency coding-agent CLI for Ollama (local), Anthropic, OpenAI, Gemini, Groq, Mistral, OpenRouter, DeepSeek and any OpenAI-compatible endpoint",
   "type": "module",
   "bin": {
     "ardan": "bin/ardan.js"
@@ -12,7 +12,9 @@
   ],
   "scripts": {
     "start": "node bin/ardan.js",
-    "test": "node --test tests/tools.test.ts tests/agent.test.ts tests/session.test.ts tests/providers-openai.test.ts tests/config.test.ts tests/tooljson.test.ts tests/render.test.ts tests/plugins.test.ts tests/tasks.test.ts tests/hooks.test.ts tests/interactive.test.ts tests/inspect.test.ts tests/bg-tasks.test.ts tests/extras.test.ts tests/more-features.test.ts"
+    "test": "node --test \"tests/*.test.ts\"",
+    "typecheck": "tsc -p .",
+    "check": "npm run typecheck && npm test"
   },
   "engines": {
     "node": ">=24.0.0"
@@ -29,5 +31,13 @@
     "openclaude",
     "claude-code"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "~5.6.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/N0t-Harshil/Ardan-CLI.git"
+  }
 }

@@ -31,7 +31,7 @@ export function printBanner(provider: string, model: string): void {
 ██╔══██╗██╔══██╗██╔══██╗██╔══██╗████╗  ██║
 ███████║██████╔╝██║  ██║███████║██╔██╗ ██║
 ██╔══██║██╔══██╗██║  ██║██╔══██║██║╚██╗██║
-██║  ██║██████╔╝██████╔╝██║  ██║██║ ╚████║
+██║  ██║██║  ██║██████╔╝██║  ██║██║ ╚████║
 ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═══╝
   open coding agent - any provider`;
   if (process.stdout.isTTY && process.stdout.columns < 60) {

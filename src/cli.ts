@@ -22,6 +22,7 @@ const USAGE = `${bold('Ardan')} ${dim(VERSION)} — open coding agent (openclaud
 ${bold('Usage')}
   ardan                       interactive REPL
   ardan "<task>"              one-shot agent run (scripts, CI)
+  echo "<task>" | ardan       piped: each line is a prompt, /command or !shell
   ardan --continue            resume the latest session for this folder
   ardan --resume <id>         resume a specific session
 
@@ -42,6 +43,9 @@ ${bold('Subcommands')}
   ardan keys list             which API keys are configured
   ardan keys set <provider> <key>
   ardan keys test [provider]  verify reachability/keys
+  ardan mcp list              configured MCP stdio servers
+  ardan mcp add <name> -- <command> [args...]
+  ardan mcp remove <name>
 
 ${bold('Env')}   ARDAN_PROVIDER, ARDAN_MODEL, ARDAN_PERMISSIONS=ask|acceptEdits|bypass,
   ARDAN_REASONING_EFFORT=low|medium|high, ARDAN_DISABLE_CRON, ARDAN_DISABLE_TASK_NOTIFICATIONS
@@ -50,8 +54,10 @@ ${bold('Env')}   ARDAN_PROVIDER, ARDAN_MODEL, ARDAN_PERMISSIONS=ask|acceptEdits|
     lspServers for the Diagnostics tool, mcpServers, custom providers)`;
 
 /* ---------------------------------------------------------- arg parsing */
-const HELP = process.argv.includes('-h') || process.argv.includes('--help');
-const VERSION_FLAG = process.argv.includes('-v') || process.argv.includes('--version');
+const dashDash = process.argv.indexOf('--');
+const ownArgs = dashDash === -1 ? process.argv : process.argv.slice(0, dashDash);
+const HELP = ownArgs.includes('-h') || ownArgs.includes('--help');
+const VERSION_FLAG = ownArgs.includes('-v') || ownArgs.includes('--version');
 
 if (VERSION_FLAG) {
   console.log(VERSION);
@@ -72,7 +78,11 @@ const SHORTS: Record<string, string> = {
 
 for (let i = 0; i < argv.length; i++) {
   const arg = argv[i];
-  if (arg === '--') continue; // positional separator
+  if (arg === '--') {
+    // everything after `--` is positional, verbatim (e.g. `mcp add x -- npx -y pkg`)
+    positional.push(...argv.slice(i + 1));
+    break;
+  }
   if (arg.startsWith('--')) {
     const name = arg.slice(2);
     if (BOOL_FLAGS.has(name)) {

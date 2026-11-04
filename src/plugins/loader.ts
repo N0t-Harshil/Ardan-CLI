@@ -88,10 +88,8 @@ function preprocessPrompt(body: string): string {
       if (!match) return line;
       const command = match[1].trim();
       try {
-        const shell = process.platform === 'win32' ? 'cmd.exe' : 'bash';
-        const args = process.platform === 'win32' ? ['/d', '/s', '/c', command] : ['-c', command];
-        return execSync(shell, {
-          args,
+        return execSync(command, {
+          shell: process.platform === 'win32' ? 'cmd.exe' : 'bash',
           encoding: 'utf8',
           timeout: 10_000,
           stdio: ['ignore', 'pipe', 'ignore'],

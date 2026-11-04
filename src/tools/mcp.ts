@@ -10,13 +10,15 @@ const HANDSHAKE = {
   params: {
     protocolVersion: '2024-11-05',
     capabilities: {},
-    clientInfo: { name: 'ardan', version: '0.3.0' },
+    clientInfo: { name: 'ardan', version: '0.6.0' },
   },
 };
 
 export class McpServer {
   private proc?: ChildProcessWithoutNullStreams;
   private nextId = 1;
+  private buffer = '';
+  private readonly pending = new Map<number, (message: any | null) => void>();
   readonly serverName: string;
   private readonly command: string;
   private readonly args: string[];
@@ -35,17 +37,38 @@ export class McpServer {
   }
 
   async connect(): Promise<McpToolInfo[]> {
-    this.proc = spawn(this.command, this.args, {
-      stdio: ['pipe', 'pipe', 'pipe'],
+    // On Windows `npx`, `uvx` etc. are .cmd shims that spawn() cannot run
+    // without a shell; quote each part so paths with spaces survive.
+    const options = {
+      stdio: ['pipe', 'pipe', 'pipe'] as ['pipe', 'pipe', 'pipe'],
       env: { ...process.env, ...this.env },
       windowsHide: true,
+    };
+    const quote = (part: string) => (/[\s"]/.test(part) ? `"${part.replace(/"/g, '\\"')}"` : part);
+    const proc = process.platform === 'win32'
+      ? spawn([this.command, ...this.args].map(quote).join(' '), { ...options, shell: true })
+      : spawn(this.command, this.args, options);
+    this.proc = proc;
+    let spawnError: Error | undefined;
+    proc.on('error', (error) => {
+      spawnError = error;
+      this.failAll();
     });
+    proc.on('exit', () => this.failAll());
+    proc.stdin.on('error', () => this.failAll());
+    proc.stderr.resume(); // drain logs so the server never blocks on a full pipe
+    proc.stdout.setEncoding('utf8');
+    proc.stdout.on('data', (chunk: string) => this.onData(chunk));
+
     const init = await this.request(HANDSHAKE.method, HANDSHAKE.params);
-    if (!init) throw new ProviderError(`MCP '${this.serverName}' did not respond to initialize`, 'mcp');
+    if (!init || init.error) {
+      this.stop();
+      const why = spawnError?.message || init?.error?.message || 'did not respond to initialize';
+      throw new ProviderError(`MCP '${this.serverName}': ${why}`, 'mcp');
+    }
     this.notify('notifications/initialized');
     const tools = await this.request('tools/list', {});
-    const info: McpToolInfo[] = tools?.tools || [];
-    return info;
+    return (tools?.result?.tools as McpToolInfo[]) || [];
   }
 
   stop(): void {
@@ -55,47 +78,66 @@ export class McpServer {
       /* ignore */
     }
     this.proc = undefined;
+    this.failAll();
   }
 
   get connected(): boolean {
     return Boolean(this.proc);
   }
 
+  /** Newline-delimited JSON-RPC: buffer partial lines across chunks. */
+  private onData(chunk: string): void {
+    this.buffer += chunk;
+    let newline: number;
+    while ((newline = this.buffer.indexOf('\n')) !== -1) {
+      const line = this.buffer.slice(0, newline).trim();
+      this.buffer = this.buffer.slice(newline + 1);
+      if (!line) continue;
+      let message: any;
+      try {
+        message = JSON.parse(line);
+      } catch {
+        continue; // non-JSON log line
+      }
+      if (typeof message?.id !== 'number') continue; // notification / server request
+      const settle = this.pending.get(message.id);
+      if (settle) {
+        this.pending.delete(message.id);
+        settle(message);
+      }
+    }
+  }
+
+  private failAll(): void {
+    for (const settle of this.pending.values()) settle(null);
+    this.pending.clear();
+  }
+
+  /**
+   * Sends a request and resolves with the full JSON-RPC response envelope
+   * ({ result } or { error }), or null on timeout / disconnect.
+   */
   async request(
     method: string,
     params: Record<string, unknown>,
+    timeoutMs = 15_000,
   ): Promise<any | null> {
-    if (!this.proc) return null;
+    const proc = this.proc;
+    if (!proc) return null;
     const id = this.nextId++;
     return await new Promise((resolve) => {
       const timer = setTimeout(() => {
-        this.proc?.stdout?.off('data', onData);
+        this.pending.delete(id);
         resolve(null);
-      }, 15_000);
-      const onData = (chunk: Buffer) => {
-        const text = chunk.toString();
-        for (const line of text.split('\n')) {
-          if (!line.trim()) continue;
-          try {
-            const parsed = JSON.parse(line);
-            if (parsed.id === id) {
-              clearTimeout(timer);
-              this.proc?.stdout?.off('data', onData);
-              resolve(parsed);
-              return;
-            }
-          } catch {
-            /* partial or non-json line */
-          }
-        }
-      };
-      this.proc.stdout?.setEncoding('utf8');
-      this.proc.stdout?.on('data', onData);
+      }, timeoutMs);
+      this.pending.set(id, (message) => {
+        clearTimeout(timer);
+        resolve(message);
+      });
       try {
-        this.proc.stdin?.write(
-          JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n',
-        );
+        proc.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n');
       } catch {
+        this.pending.delete(id);
         clearTimeout(timer);
         resolve(null);
       }
@@ -158,7 +200,6 @@ export function mcpToolDefs(
         return { ok: outcome.ok, text: flat };
       },
     };
-    void ctx;
     return tool;
   });
 }
