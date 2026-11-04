@@ -14,7 +14,8 @@
     "start": "node bin/ardan.js",
     "test": "node --test \"tests/*.test.ts\"",
     "typecheck": "tsc -p .",
-    "check": "npm run typecheck && npm test"
+    "check": "npm run typecheck && npm test",
+    "bench": "node bench/bench.ts"
   },
   "engines": {
     "node": ">=24.0.0"

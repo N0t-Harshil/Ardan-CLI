@@ -581,7 +581,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     `${dim('Tips: @file attaches  •  !cmd runs shell  •  Ctrl+C interrupts')}`,
   ].join('\n');
 
-  const exitRepl = (code = 0): never => {
+  const exitRepl = async (code = 0): Promise<never> => {
     clearInterval(poller);
     for (const entry of hooksFor(settings, 'SessionEnd')) {
       try {
@@ -600,7 +600,16 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     }
     for (const server of mcpServers) server.stop();
     if (process.stdout.isTTY) console.log(dim('\nSession saved. Bye!'));
-    process.exit(code);
+    await closeHttpPool();
+    // Exit by letting the event loop drain instead of process.exit(): a
+    // hard exit while V8 worker threads are still finishing can abort Node
+    // on Windows ("Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)",
+    // exit code 0xC0000409). The unref'd timer only fires if something
+    // unexpected keeps the process alive.
+    process.exitCode = code;
+    process.stdin.pause();
+    setTimeout(() => process.exit(code), 2_000).unref();
+    return new Promise<never>(() => {}); // never continue the caller
   };
 
   const switchProvider = (name: string): void => {
@@ -1143,7 +1152,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
       }
       case '/exit':
       case '/quit':
-        exitRepl();
+        await exitRepl();
         return;
       default: {
         // custom commands, then user-invocable skills
@@ -1226,7 +1235,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
   if (options.oneShot) {
     const prefix = expandMentions(options.oneShot);
     await runTurn(options.oneShot, prefix);
-    exitRepl();
+    await exitRepl();
   }
 
   const processLine = async (line: string): Promise<void> => {
@@ -1253,17 +1262,34 @@ export async function startRepl(options: ReplOptions): Promise<void> {
       console.log(
         dim('stdin is empty — pass a prompt:   ardan "fix the failing tests"   (or see --help)'),
       );
-      exitRepl(0);
+      await exitRepl(0);
     }
     for (const line of lines) await processLine(line);
-    exitRepl();
+    await exitRepl();
   }
 
   while (true) {
     const line = await askLine(`${cyan('❯')} `);
-    if (line === null || line === '__exit__') exitRepl();
+    if (line === null || line === '__exit__') await exitRepl();
     await processLine(line || '');
   }
+}
+
+/**
+ * Close fetch()'s pooled keep-alive sockets before process.exit(). On
+ * Windows, exiting while a pooled connection is still open can abort Node
+ * with "Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)" (exit code
+ * 0xC0000409) after any session that made more than one API request.
+ */
+async function closeHttpPool(): Promise<void> {
+  const pool = (globalThis as Record<symbol, { destroy?: () => Promise<void> } | undefined>)[
+    Symbol.for('undici.globalDispatcher.1')
+  ];
+  if (typeof pool?.destroy !== 'function') return;
+  await Promise.race([
+    pool.destroy().catch(() => undefined),
+    new Promise((resolve) => setTimeout(resolve, 500).unref()),
+  ]);
 }
 
 function readMemory(workdir: string): string | undefined {

@@ -254,7 +254,9 @@ printBanner(chosenProvider, chosenModel);
 
 const prompt = positional.length ? positional.join(' ') : undefined;
 
-await startRepl({
+// not awaited: on exit the REPL lets the event loop drain naturally, and an
+// unsettled top-level await would turn that into exit code 13
+void startRepl({
   workdir,
   providerName: chosenProvider,
   modelOverride: chosenModel,
@@ -263,4 +265,7 @@ await startRepl({
   autoYes: Boolean(flags.yes) || process.env.ARDAN_AUTO_ACCEPT === '1',
   planMode: Boolean(flags.plan),
   oneShot: prompt,
+}).catch((error) => {
+  console.error(error);
+  process.exit(1);
 });

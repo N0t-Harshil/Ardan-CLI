@@ -28,6 +28,8 @@ jobs:
           node bin/ardan.js --version
           node bin/ardan.js --help
           node bin/ardan.js providers
+      - name: Benchmark
+        run: npm run bench
 
   python-legacy:
     name: legacy python package

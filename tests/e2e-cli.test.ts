@@ -92,3 +92,49 @@ test('CLI one-shot run: model writes a file, runs it, reports the result', { tim
     server.close();
   }
 });
+
+// Regression: on Windows, process.exit() right after a tool-using run
+// aborted Node with "Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)"
+// (exit code 0xC0000409) almost every time. Exit must be clean and fast.
+test('CLI exits cleanly (code 0) after a tool-using run, every time', { timeout: 60_000 }, async () => {
+  const workdir = fs.mkdtempSync(path.join(os.tmpdir(), 'ardan-exit-work-'));
+  fs.writeFileSync(path.join(workdir, 'notes.txt'), 'hello\n');
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk) => (body += chunk));
+    req.on('end', () => {
+      const answered = JSON.parse(body).messages.some((m: any) => m.role === 'tool');
+      sse(res, [answered ? { content: 'done' } : toolCall('c1', 'Read', { file_path: 'notes.txt' })]);
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address() as AddressInfo;
+  try {
+    for (let run = 0; run < 5; run++) {
+      const started = Date.now();
+      const child = spawn(
+        process.execPath,
+        [path.join(root, 'bin', 'ardan.js'), '--yes', '--provider', 'openai', '--model', 'm', '--cwd', workdir, 'read notes.txt'],
+        {
+          env: {
+            ...process.env,
+            OPENAI_API_KEY: 'test-key',
+            OPENAI_BASE_URL: `http://127.0.0.1:${port}/v1`,
+            ARDAN_CONFIG_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'ardan-exit-config-')),
+            ARDAN_DISABLE_CRON: '1',
+            NO_COLOR: '1',
+          },
+          stdio: ['ignore', 'ignore', 'pipe'],
+        },
+      );
+      let stderr = '';
+      child.stderr.on('data', (chunk) => (stderr += chunk));
+      const code = await new Promise<number | null>((resolve) => child.on('close', resolve));
+      assert.equal(code, 0, `run ${run}: ${stderr}`);
+      assert.doesNotMatch(stderr, /Assertion failed/);
+      assert.ok(Date.now() - started < 1_900, 'exited without waiting for the forced-exit fallback');
+    }
+  } finally {
+    server.close();
+  }
+});

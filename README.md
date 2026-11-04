@@ -11,7 +11,7 @@
 ![platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-informational)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-[Features](#features) · [Install](#install) · [Usage](#usage) · [Providers](#providers) · [Extending](#extending-ardan) · [How it works](#how-it-works)
+[Features](#features) · [Install](#install) · [Usage](#usage) · [Providers](#providers) · [Extending](#extending-ardan) · [How it works](#how-it-works) · [Benchmarks](#benchmarks)
 
 </div>
 
@@ -42,15 +42,24 @@ stay in control: every risky action asks for permission first.
 
 ### By the numbers
 
-| | |
-|:--|:--|
-| **8** LLM providers built in | plus any OpenAI-compatible endpoint |
-| **35** tools the agent can use | plus every tool from connected MCP servers |
-| **0** runtime dependencies | nothing to audit, nothing to break on `npm install` |
-| **75 KB** download | the entire CLI, as an npm package |
-| **~150 ms** startup | `ardan --version` on a 4-core laptop CPU |
-| **3** operating systems | Linux, macOS and Windows, tested in CI |
-| **$0** to run | fully offline with Ollama — no API key, no account |
+<table>
+<tr>
+<td align="center" width="25%"><h2>8.1 ms</h2>Ardan's overhead per agent step<br><sub>model → tool → model</sub></td>
+<td align="center" width="25%"><h2>144 ms</h2>cold start<br><sub><code>ardan --version</code></sub></td>
+<td align="center" width="25%"><h2>84 MB</h2>peak memory<br><sub>26-step agent run</sub></td>
+<td align="center" width="25%"><h2>0</h2>runtime dependencies<br><sub>77 KB package</sub></td>
+</tr>
+<tr>
+<td align="center"><h2>8</h2>LLM providers<br><sub>+ any OpenAI-compatible API</sub></td>
+<td align="center"><h2>35</h2>built-in agent tools<br><sub>+ every MCP server tool</sub></td>
+<td align="center"><h2>38</h2>slash commands<br><sub>sessions, review, rewind…</sub></td>
+<td align="center"><h2>$0</h2>to run offline<br><sub>local models via Ollama</sub></td>
+</tr>
+</table>
+
+<sub>Performance measured with <code>npm run bench</code> (see <a href="#benchmarks">Benchmarks</a>) on an
+Intel i5-1135G7 laptop, Windows 11, Node 24 — no GPU. The model's own thinking time is excluded,
+so the numbers show what Ardan itself adds on top of whichever LLM you use.</sub>
 
 ## Features
 
@@ -331,6 +340,10 @@ Engineering choices worth calling out:
 - **Protocol clients from scratch.** MCP (JSON-RPC 2.0 over stdio) and LSP
   (Content-Length framed JSON-RPC) are implemented directly, including
   buffering of messages split across pipe chunks.
+- **Clean shutdown.** Ardan closes its HTTP connection pool and lets the
+  event loop drain instead of hard-exiting, which avoids a Node-on-Windows
+  crash at exit (found with the benchmark below; covered by a regression
+  test).
 - **No build step.** Node 24 strips TypeScript types at load time, and the
   launcher enables Node's on-disk compile cache for faster startup.
 
@@ -345,6 +358,30 @@ Engineering choices worth calling out:
 | `src/plugins/` | Markdown plugin loader, hook engine, scheduler |
 | `src/render.ts` | streaming terminal renderer |
 | `src/session.ts` | session storage, resume, rewind, export |
+
+## Benchmarks
+
+```bash
+npm run bench
+```
+
+```text
+Ardan benchmark — Node 24.18.0, win32, 11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz (8 threads)
+
+  startup (ardan --version, median of 9)        144 ms
+  1-step agent run, end to end (median of 5)    216 ms
+  overhead per agent step (model->tool->model)  8.1 ms
+  peak memory, 26-step agent run               84 MB
+```
+
+The benchmark points Ardan at a local OpenAI-compatible server that answers
+instantly, so the model's own thinking time drops out and what remains is
+Ardan itself. Per-step overhead covers everything Ardan does for one agent
+step: parsing the streamed response, running the tool, rendering, saving the
+session, and building the next request. It is calculated as
+`(time for 26 steps − time for 1 step) / 25`. The 1-step run includes
+process startup, so it is the full cost of `ardan "task"` from launch to
+exit. Source: [`bench/bench.ts`](bench/bench.ts).
 
 ## Configuration
 
@@ -392,12 +429,25 @@ Settings live in `~/.ardan/settings.json`:
 | Garbled symbols on Windows | use Windows Terminal, or set `NO_COLOR=1` |
 | "requires Node.js >= 24" | `winget install OpenJS.NodeJS` · `brew install node` |
 
+## What this project demonstrates
+
+| area | in Ardan |
+|---|---|
+| **Agent design** | a tool-using LLM loop with permissions, plan mode, sub-agents, checkpoints and context compaction |
+| **Protocols, built by hand** | 6 wire formats with no SDKs: OpenAI SSE, Anthropic SSE, Gemini SSE, Ollama NDJSON, MCP (JSON-RPC over stdio) and LSP (Content-Length framed JSON-RPC) |
+| **Streaming parsers** | incremental SSE/NDJSON decoding and a tool-call extractor that copes with JSON split across network chunks |
+| **Process management** | shell commands that move to the background after 15 s, output streaming, process-tree kill, clean shutdown |
+| **Cross-platform** | the same code on Linux, macOS and Windows (Bash and PowerShell, `.cmd` shims, path handling) |
+| **Reliability** | strict TypeScript, unit tests plus a full CLI end-to-end test, a reproducible benchmark, and CI on 3 operating systems |
+| **Developer experience** | 38 slash commands, Markdown plugins, hooks, session resume and rewind, readable streaming output |
+
 ## Development
 
 ```bash
 npm install         # dev tools only (TypeScript compiler + Node types)
 npm run typecheck   # strict type-check
-npm test            # node:test suite
+npm test            # unit + end-to-end tests
+npm run bench       # performance numbers
 ```
 
 CI runs the type-check, the test suite and a CLI smoke test on Linux, macOS
