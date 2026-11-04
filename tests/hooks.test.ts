@@ -26,7 +26,8 @@ test('runHook passes when exit 0 and captures stdout', async () => {
 
 test('runHook parses JSON decision + systemMessage from stdout', async () => {
   const result = await runHook(
-    { command: 'echo {"decision":"block","systemMessage":"no writes on fridays"}' },
+    // portable across cmd.exe and bash (plain `echo {"..."}` loses its quotes in bash)
+    { command: `node -e "console.log(JSON.stringify({decision:'block',systemMessage:'no writes on fridays'}))"` },
     { event: 'PreToolUse', tool: 'Write' },
     workdir,
   );
@@ -37,12 +38,19 @@ test('runHook parses JSON decision + systemMessage from stdout', async () => {
 
 test('runHook receives payload JSON on stdin', async () => {
   const result = await runHook(
-    { command: 'findstr "T00L"' },
+    { command: 'node -e "process.stdin.pipe(process.stdout)"' },
     { event: 'PreToolUse', tool: 'T00L_marker' },
     workdir,
   );
   assert.equal(result.blocked, false);
   assert.ok(result.output.includes('T00L'), 'stdin payload piped to hook');
+});
+
+test('runHook survives a hook that exits without reading stdin', async () => {
+  // used to raise an uncaught EPIPE on Linux/macOS and crash the process
+  const payload = { event: 'PreToolUse', tool: 'Write', args: { content: 'x'.repeat(1_000_000) } };
+  const result = await runHook({ command: 'exit 3' }, payload as never, workdir);
+  assert.equal(result.blocked, true, 'non-zero exit blocks the tool');
 });
 
 test('hooksFor pulls configured entries per event', () => {

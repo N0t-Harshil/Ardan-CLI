@@ -123,6 +123,10 @@ export async function runHook(
       });
     });
 
+    // A hook may exit without reading stdin (e.g. `exit 1`); the resulting
+    // EPIPE arrives as an 'error' event and would otherwise crash Ardan.
+    child.stdin.on('error', () => undefined);
+    child.stderr?.resume(); // drain so a chatty hook never blocks on a full pipe
     try {
       child.stdin.end(JSON.stringify(payload));
     } catch {
